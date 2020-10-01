@@ -35,3 +35,16 @@ jobs:
 
       - name: Run all tests
         run: yarn test
+
+      - shell: bash
+        if: github.ref == 'refs/heads/master'
+        name: Create SSH deployment key
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: ./script/deploy.sh
+
+      - name: Deployment
+        if: github.ref == 'refs/heads/master'
+        run: git remote add umbler ssh://git@kamino.deploy.umbler.com:9922/j37px87k/cursonodejszeroproducao-com-br.git && git push umbler master
+        env:
+          CI: true
