@@ -1,9 +1,9 @@
-import { Controller, Post } from '@overnightjs/core';
+import { Controller, Get, Middleware, Post } from '@overnightjs/core';
 import { Response, Request } from 'express';
 import { User } from '@src/models/user';
 import AuthService from '@src/services/auth';
 import { BaseController } from './index';
-import logger from '@src/logger';
+import { authMiddleware } from '@src/middlewares/auth';
 
 @Controller('users')
 export class UsersController extends BaseController {
@@ -14,7 +14,6 @@ export class UsersController extends BaseController {
       const newUser = await user.save();
       res.status(201).send(newUser);
     } catch (error) {
-      logger.error(error);
       this.sendCreateUpdateErrorResponse(res, error);
     }
   }
@@ -23,20 +22,36 @@ export class UsersController extends BaseController {
   public async authenticate(req: Request, res: Response): Promise<Response> {
     const user = await User.findOne({ email: req.body.email });
     if (!user) {
-      return res.status(401).send({
+      return this.sendErrorResponse(res, {
         code: 401,
-        error: 'User not found!',
+        message: 'User not found!',
       });
     }
     if (
       !(await AuthService.comparePasswords(req.body.password, user.password))
     ) {
-      return res
-        .status(401)
-        .send({ code: 401, error: 'Password does not match!' });
+      return this.sendErrorResponse(res, {
+        code: 401,
+        message: 'Password does not match!',
+      });
     }
     const token = AuthService.generateToken(user.toJSON());
 
     return res.send({ ...user.toJSON(), ...{ token } });
+  }
+
+  @Get('me')
+  @Middleware(authMiddleware)
+  public async me(req: Request, res: Response): Promise<Response> {
+    const email = req.decoded ? req.decoded.email : undefined;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return this.sendErrorResponse(res, {
+        code: 404,
+        message: 'User not found!',
+      });
+    }
+
+    return res.send({ user });
   }
 }
